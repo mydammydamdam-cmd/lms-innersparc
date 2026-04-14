@@ -537,21 +537,24 @@
         return;
       }
 
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      const finalParts = [];
+      const interimParts = [];
+
+      for (let i = 0; i < event.results.length; i += 1) {
         const part = event.results[i] && event.results[i][0] ? String(event.results[i][0].transcript || '').trim() : '';
         if (!part) {
           continue;
         }
 
         if (event.results[i].isFinal) {
-          state.voiceDraftFinal = (state.voiceDraftFinal ? state.voiceDraftFinal + ' ' : '') + part;
+          finalParts.push(part);
         } else {
-          interim = (interim ? interim + ' ' : '') + part;
+          interimParts.push(part);
         }
       }
 
-      state.voiceDraftInterim = interim;
+      state.voiceDraftFinal = finalParts.join(' ').trim();
+      state.voiceDraftInterim = interimParts.join(' ').trim();
       els.voiceDraftInput.value = getCombinedVoiceDraftText();
     };
 
