@@ -84,8 +84,8 @@ const SESSION_CACHE_PREFIX = 'lms_session:';
 const SESSION_TTL_SECONDS = 6 * 60 * 60;
 const VOICE_RATE_PREFIX = 'voice_rate:';
 
-const REQUIRED_SHEET_HEADERS = {};
-REQUIRED_SHEET_HEADERS[SHEET_NAMES.USERS] = [
+const REQUIRED_HEADERS_BY_SHEET = {};
+REQUIRED_HEADERS_BY_SHEET[SHEET_NAMES.USERS] = [
   USER_HEADERS.ID,
   USER_HEADERS.FULL_NAME,
   USER_HEADERS.USERNAME,
@@ -93,7 +93,7 @@ REQUIRED_SHEET_HEADERS[SHEET_NAMES.USERS] = [
   USER_HEADERS.TEAM,
   USER_HEADERS.ROLE
 ];
-REQUIRED_SHEET_HEADERS[SHEET_NAMES.LEADS] = [
+REQUIRED_HEADERS_BY_SHEET[SHEET_NAMES.LEADS] = [
   LEAD_HEADERS.LEAD_ID,
   LEAD_HEADERS.AGENT_USERNAME,
   LEAD_HEADERS.CLIENT_NAME,
@@ -108,12 +108,12 @@ REQUIRED_SHEET_HEADERS[SHEET_NAMES.LEADS] = [
   LEAD_HEADERS.REMARKS,
   LEAD_HEADERS.DATE_ADDED
 ];
-REQUIRED_SHEET_HEADERS[SHEET_NAMES.PROJECTS] = [
+REQUIRED_HEADERS_BY_SHEET[SHEET_NAMES.PROJECTS] = [
   PROJECT_HEADERS.PROJECT_NAME,
   PROJECT_HEADERS.COMMISSION,
   PROJECT_HEADERS.DRIVE_LINK
 ];
-REQUIRED_SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS] = [
+REQUIRED_HEADERS_BY_SHEET[SHEET_NAMES.TRANSACTIONS] = [
   TRANSACTION_HEADERS.TRANSACTION_ID,
   TRANSACTION_HEADERS.LEAD_ID,
   TRANSACTION_HEADERS.PAYMENT_TYPE,
@@ -122,14 +122,14 @@ REQUIRED_SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS] = [
   TRANSACTION_HEADERS.RECEIPT_DRIVE_URL,
   TRANSACTION_HEADERS.RESERVATION_DATE
 ];
-REQUIRED_SHEET_HEADERS[SHEET_NAMES.ACTIVITY_LOGS] = [
+REQUIRED_HEADERS_BY_SHEET[SHEET_NAMES.ACTIVITY_LOGS] = [
   LOG_HEADERS.LOG_ID,
   LOG_HEADERS.LEAD_ID,
   LOG_HEADERS.AGENT_USERNAME,
   LOG_HEADERS.TIMESTAMP,
   LOG_HEADERS.ACTION_TEXT
 ];
-REQUIRED_SHEET_HEADERS[SHEET_NAMES.IT_TICKETS] = [
+REQUIRED_HEADERS_BY_SHEET[SHEET_NAMES.IT_TICKETS] = [
   TICKET_HEADERS.TICKET_ID,
   TICKET_HEADERS.USERNAME,
   TICKET_HEADERS.ISSUE_TYPE,
@@ -138,14 +138,10 @@ REQUIRED_SHEET_HEADERS[SHEET_NAMES.IT_TICKETS] = [
   TICKET_HEADERS.STATUS
 ];
 
-var SCHEMA_CHECKED_THIS_EXECUTION = false;
-
 function doGet(e) {
   if (e && e.parameter && e.parameter.health === '1') {
     return ContentService.createTextOutput('ok').setMimeType(ContentService.MimeType.TEXT);
   }
-
-  ensureSpreadsheetSchema_();
 
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
@@ -154,113 +150,34 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-function initializeSpreadsheetSchema() {
-  return ensureSpreadsheetSchema_(true);
-}
-
-function ensureSpreadsheetSchema_(forceRun) {
-  if (!forceRun && SCHEMA_CHECKED_THIS_EXECUTION) {
-    return {
-      ok: true,
-      cached: true
-    };
-  }
-
+function initialDatabaseSetup() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetNames = Object.keys(REQUIRED_SHEET_HEADERS);
+  var sheetNames = Object.keys(REQUIRED_HEADERS_BY_SHEET);
   var report = {
     ok: true,
     createdSheets: [],
-    updatedSheets: [],
-    untouchedSheets: []
+    preparedSheets: []
   };
 
   for (var i = 0; i < sheetNames.length; i++) {
     var sheetName = sheetNames[i];
-    var result = ensureSingleSheetSchema_(ss, sheetName, REQUIRED_SHEET_HEADERS[sheetName]);
+    var headers = REQUIRED_HEADERS_BY_SHEET[sheetName];
+    var sheet = ss.getSheetByName(sheetName);
 
-    if (result.created) {
-      report.createdSheets.push({
-        sheetName: sheetName,
-        addedHeaders: result.addedHeaders
-      });
-      continue;
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      report.createdSheets.push(sheetName);
     }
 
-    if (result.addedHeaders.length) {
-      report.updatedSheets.push({
-        sheetName: sheetName,
-        addedHeaders: result.addedHeaders
-      });
-      continue;
+    if (headers.length) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
 
-    report.untouchedSheets.push(sheetName);
-  }
-
-  SCHEMA_CHECKED_THIS_EXECUTION = true;
-  return report;
-}
-
-function ensureSingleSheetSchema_(ss, sheetName, requiredHeaders) {
-  var sheet = ss.getSheetByName(sheetName);
-  var created = false;
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    created = true;
-  }
-
-  var addedHeaders = [];
-  var lastRow = sheet.getLastRow();
-
-  if (lastRow === 0) {
-    if (requiredHeaders.length) {
-      sheet.getRange(1, 1, 1, requiredHeaders.length).setValues([requiredHeaders]);
-      addedHeaders = requiredHeaders.slice();
-    }
-
-    if (sheet.getFrozenRows() < 1) {
-      sheet.setFrozenRows(1);
-    }
-
-    return {
-      created: created,
-      addedHeaders: addedHeaders
-    };
-  }
-
-  var headerWidth = Math.max(sheet.getLastColumn(), requiredHeaders.length, 1);
-  var headerRow = sheet.getRange(1, 1, 1, headerWidth).getValues()[0];
-  var existing = {};
-
-  for (var i = 0; i < headerRow.length; i++) {
-    var header = String(headerRow[i] || '').trim();
-    if (header) {
-      existing[header] = true;
-    }
-  }
-
-  for (var h = 0; h < requiredHeaders.length; h++) {
-    var requiredHeader = requiredHeaders[h];
-    if (!existing[requiredHeader]) {
-      addedHeaders.push(requiredHeader);
-    }
-  }
-
-  if (addedHeaders.length) {
-    var startCol = Math.max(sheet.getLastColumn(), 0) + 1;
-    sheet.getRange(1, startCol, 1, addedHeaders.length).setValues([addedHeaders]);
-  }
-
-  if (sheet.getFrozenRows() < 1) {
     sheet.setFrozenRows(1);
+    report.preparedSheets.push(sheetName);
   }
 
-  return {
-    created: created,
-    addedHeaders: addedHeaders
-  };
+  return report;
 }
 
 function include(filename) {
@@ -388,21 +305,21 @@ function saveLead(token, payload) {
   }
 
   var leadId = generateId_('LEAD');
-  appendRowByHeaderObject_(SHEET_NAMES.LEADS, {
-    LeadID: leadId,
-    AgentUsername: session.username,
-    ClientName: clientName,
-    Phone: phone,
-    Country: country,
-    'Classification (OFW, Locally Employed, Self-Employed)': classification === 'Unknown' ? 'Locally Employed' : classification,
-    'Source (TikTok Ads, FB Ads, Organic, Referral, KKK)': source,
-    'Temperature (Hot, Warm, Cold)': temperature,
-    Project: project,
-    TotalSellingPrice: totalSellingPrice,
-    Status: status,
-    Remarks: remarks,
-    DateAdded: new Date()
-  });
+  getSheetOrThrow_(SHEET_NAMES.LEADS).appendRow([
+    leadId,
+    session.username,
+    clientName,
+    phone,
+    country,
+    classification === 'Unknown' ? 'Locally Employed' : classification,
+    source,
+    temperature,
+    project,
+    totalSellingPrice,
+    status,
+    remarks,
+    new Date()
+  ]);
 
   appendActivity_(leadId, session.username, 'Lead created via ' + entrySource + ' entry.');
 
@@ -424,8 +341,7 @@ function updateLeadStatus(token, leadId, nextStatus) {
     throw new Error('Lead not found for this account.');
   }
 
-  var statusColumn = getHeaderIndex_(leadData.headers, LEAD_HEADERS.STATUS);
-  leadData.sheet.getRange(rowInfo.rowNumber, statusColumn).setValue(nextStatus);
+  leadData.sheet.getRange(rowInfo.rowNumber, 11).setValue(nextStatus);
 
   appendActivity_(leadId, session.username, 'Lead status updated to "' + nextStatus + '".');
 
@@ -489,23 +405,23 @@ function saveDPTransaction(token, payload) {
   var txRow = findLatestTransactionInfo_(txData.rows, leadId);
 
   if (txRow) {
-    patchRowByHeaderObject_(txData.sheet, txData.headers, txRow.rowNumber, {
-      'PaymentType (Spot / Installment)': paymentType,
-      TermMonths: termMonths,
-      CurrentMonthPaid: currentMonthPaid,
-      ReceiptDriveURL: receiptDriveURL || txRow.row[TRANSACTION_HEADERS.RECEIPT_DRIVE_URL],
-      ReservationDate: reservationDate
-    });
+    txData.sheet.getRange(txRow.rowNumber, 3).setValue(paymentType);
+    txData.sheet.getRange(txRow.rowNumber, 4).setValue(termMonths);
+    txData.sheet.getRange(txRow.rowNumber, 5).setValue(currentMonthPaid);
+    txData.sheet.getRange(txRow.rowNumber, 6).setValue(
+      receiptDriveURL || txRow.row[TRANSACTION_HEADERS.RECEIPT_DRIVE_URL]
+    );
+    txData.sheet.getRange(txRow.rowNumber, 7).setValue(reservationDate);
   } else {
-    appendRowByHeaderObject_(SHEET_NAMES.TRANSACTIONS, {
-      TransactionID: generateId_('TX'),
-      LeadID: leadId,
-      'PaymentType (Spot / Installment)': paymentType,
-      TermMonths: termMonths,
-      CurrentMonthPaid: currentMonthPaid,
-      ReceiptDriveURL: receiptDriveURL,
-      ReservationDate: reservationDate
-    });
+    getSheetOrThrow_(SHEET_NAMES.TRANSACTIONS).appendRow([
+      generateId_('TX'),
+      leadId,
+      paymentType,
+      termMonths,
+      currentMonthPaid,
+      receiptDriveURL,
+      reservationDate
+    ]);
   }
 
   appendActivity_(
@@ -552,19 +468,17 @@ function uploadReceipt(base64Data, fileName, mimeType, leadId, token) {
   var txRow = findLatestTransactionInfo_(txData.rows, leadId);
 
   if (txRow) {
-    patchRowByHeaderObject_(txData.sheet, txData.headers, txRow.rowNumber, {
-      ReceiptDriveURL: url
-    });
+    txData.sheet.getRange(txRow.rowNumber, 6).setValue(url);
   } else {
-    appendRowByHeaderObject_(SHEET_NAMES.TRANSACTIONS, {
-      TransactionID: generateId_('TX'),
-      LeadID: leadId,
-      'PaymentType (Spot / Installment)': 'Spot',
-      TermMonths: 1,
-      CurrentMonthPaid: 0,
-      ReceiptDriveURL: url,
-      ReservationDate: new Date()
-    });
+    getSheetOrThrow_(SHEET_NAMES.TRANSACTIONS).appendRow([
+      generateId_('TX'),
+      leadId,
+      'Spot',
+      1,
+      0,
+      url,
+      new Date()
+    ]);
   }
 
   appendActivity_(leadId, session.username, 'Uploaded down payment receipt: ' + safeFileName + '.');
@@ -633,8 +547,6 @@ function changePassword(token, currentPassword, newPassword) {
   }
 
   var usersData = getSheetRows_(SHEET_NAMES.USERS);
-  var usernameCol = getHeaderIndex_(usersData.headers, USER_HEADERS.USERNAME);
-  var passwordCol = getHeaderIndex_(usersData.headers, USER_HEADERS.PASSWORD);
 
   for (var i = 0; i < usersData.rows.length; i++) {
     var row = usersData.rows[i];
@@ -646,7 +558,7 @@ function changePassword(token, currentPassword, newPassword) {
       throw new Error('Current password is incorrect.');
     }
 
-    usersData.sheet.getRange(row.__rowNumber, passwordCol).setValue(newPassword);
+    usersData.sheet.getRange(row.__rowNumber, 4).setValue(newPassword);
     return { ok: true };
   }
 
@@ -663,14 +575,14 @@ function submitTicket(token, issueType, priorityLevel, description) {
     throw new Error('Issue type, priority, and description are required.');
   }
 
-  appendRowByHeaderObject_(SHEET_NAMES.IT_TICKETS, {
-    TicketID: generateId_('TKT'),
-    Username: session.username,
-    IssueType: issueType,
-    PriorityLevel: priorityLevel,
-    Description: description,
-    Status: 'Open'
-  });
+  getSheetOrThrow_(SHEET_NAMES.IT_TICKETS).appendRow([
+    generateId_('TKT'),
+    session.username,
+    issueType,
+    priorityLevel,
+    description,
+    'Open'
+  ]);
 
   return { ok: true };
 }
@@ -778,13 +690,13 @@ function mapLeadRow_(row) {
 }
 
 function appendActivity_(leadId, username, actionText) {
-  appendRowByHeaderObject_(SHEET_NAMES.ACTIVITY_LOGS, {
-    LogID: generateId_('LOG'),
-    LeadID: leadId,
-    AgentUsername: username,
-    Timestamp: new Date(),
-    ActionText: sanitizeText_(actionText, 500)
-  });
+  getSheetOrThrow_(SHEET_NAMES.ACTIVITY_LOGS).appendRow([
+    generateId_('LOG'),
+    leadId,
+    username,
+    new Date(),
+    sanitizeText_(actionText, 500)
+  ]);
 }
 
 function getActivitiesForLead_(leadId) {
@@ -1093,13 +1005,16 @@ function normalizeVoicePayload_(payload, transcript) {
   return normalized;
 }
 
-function getSheetRows_(sheetName) {
-  ensureSpreadsheetSchema_();
-
+function getSheetOrThrow_(sheetName) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   if (!sheet) {
-    throw new Error('Sheet "' + sheetName + '" not found.');
+    throw new Error('Sheet "' + sheetName + '" not found. Run initialDatabaseSetup() first.');
   }
+  return sheet;
+}
+
+function getSheetRows_(sheetName) {
+  var sheet = getSheetOrThrow_(sheetName);
 
   var values = sheet.getDataRange().getValues();
   if (!values || values.length === 0) {
@@ -1134,37 +1049,6 @@ function getSheetRows_(sheetName) {
     headers: headers,
     rows: rows
   };
-}
-
-function appendRowByHeaderObject_(sheetName, rowObj) {
-  var data = getSheetRows_(sheetName);
-  var row = [];
-
-  for (var i = 0; i < data.headers.length; i++) {
-    var header = data.headers[i];
-    row.push(rowObj.hasOwnProperty(header) ? rowObj[header] : '');
-  }
-
-  data.sheet.appendRow(row);
-}
-
-function patchRowByHeaderObject_(sheet, headers, rowNumber, patch) {
-  for (var i = 0; i < headers.length; i++) {
-    var header = headers[i];
-    if (!patch.hasOwnProperty(header)) {
-      continue;
-    }
-    sheet.getRange(rowNumber, i + 1).setValue(patch[header]);
-  }
-}
-
-function getHeaderIndex_(headers, expectedHeader) {
-  for (var i = 0; i < headers.length; i++) {
-    if (headers[i] === expectedHeader) {
-      return i + 1;
-    }
-  }
-  throw new Error('Missing expected column: ' + expectedHeader);
 }
 
 function sanitizeText_(value, maxLen) {
