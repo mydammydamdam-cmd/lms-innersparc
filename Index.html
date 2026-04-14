@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inner SPARC LMS</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brandBlue: '#053794',
+              brandGreen: '#06643b'
+            },
+            boxShadow: {
+              card: '0 10px 30px rgba(2, 14, 44, 0.08)'
+            }
+          }
+        }
+      };
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      :root {
+        --status-hot: #ef4444;
+        --status-warm: #f97316;
+        --status-cold: #3b82f6;
+      }
+
+      * {
+        font-family: 'Montserrat', sans-serif;
+      }
+
+      body {
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 20% 10%, rgba(5, 55, 148, 0.08), transparent 40%),
+          radial-gradient(circle at 80% 0%, rgba(6, 100, 59, 0.08), transparent 30%),
+          #f6f8fc;
+      }
+
+      .scroll-slim::-webkit-scrollbar {
+        height: 6px;
+        width: 6px;
+      }
+
+      .scroll-slim::-webkit-scrollbar-thumb {
+        background-color: rgba(100, 116, 139, 0.5);
+        border-radius: 10px;
+      }
+
+      .fab-pulse {
+        animation: pulseRing 1.8s infinite;
+      }
+
+      @keyframes pulseRing {
+        0% {
+          box-shadow: 0 0 0 0 rgba(5, 55, 148, 0.35);
+        }
+        70% {
+          box-shadow: 0 0 0 16px rgba(5, 55, 148, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(5, 55, 148, 0);
+        }
+      }
+    </style>
+  </head>
+
+  <body class="text-slate-800 antialiased">
+    <div id="toast" class="pointer-events-none fixed left-1/2 top-4 z-[100] hidden w-[92%] max-w-sm -translate-x-1/2 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-lg"></div>
+
+    <div id="globalLoader" class="fixed inset-0 z-[99] hidden items-center justify-center bg-slate-950/40 px-6">
+      <div class="w-full max-w-xs rounded-2xl bg-white p-5 text-center shadow-card">
+        <div class="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-4 border-brandBlue border-t-transparent"></div>
+        <p id="globalLoaderText" class="text-sm font-semibold text-slate-700">Working...</p>
+      </div>
+    </div>
+
+    <main>
+      <section id="viewLogin" class="flex min-h-screen items-center justify-center p-4">
+        <div class="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-card">
+          <div class="mb-5 text-center">
+            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Inner SPARC Realty</p>
+            <h1 class="mt-2 text-2xl font-extrabold text-slate-900">Lead Hub LMS</h1>
+            <p class="mt-1 text-sm text-slate-500">Sign in to manage your pipeline</p>
+          </div>
+
+          <form id="loginForm" class="space-y-3">
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-slate-700" for="loginUsername">Username</label>
+              <input
+                id="loginUsername"
+                type="text"
+                autocomplete="username"
+                class="h-12 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none ring-brandBlue transition focus:border-brandBlue focus:ring"
+                placeholder="Enter username"
+                required
+              />
+            </div>
+
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-slate-700" for="loginPassword">Password</label>
+              <input
+                id="loginPassword"
+                type="password"
+                autocomplete="current-password"
+                class="h-12 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none ring-brandBlue transition focus:border-brandBlue focus:ring"
+                placeholder="Enter password"
+                required
+              />
+            </div>
+
+            <button
+              id="loginSubmitBtn"
+              type="submit"
+              class="mt-2 h-12 w-full rounded-xl bg-brandBlue text-base font-bold text-white shadow-md transition active:scale-[0.98]"
+            >
+              Sign In
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <section id="viewDashboard" class="hidden pb-28">
+        <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">Dashboard</p>
+              <h2 id="welcomeText" class="text-lg font-bold text-slate-900">Welcome</h2>
+            </div>
+
+            <button
+              id="openMenuBtn"
+              type="button"
+              class="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 active:scale-[0.97]"
+              aria-label="Open menu"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="mx-auto w-full max-w-6xl px-4 pt-4">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <button
+              id="manualAddBtn"
+              type="button"
+              class="h-12 rounded-xl border border-brandBlue bg-white px-4 text-sm font-bold text-brandBlue active:scale-[0.98]"
+            >
+              Manual Add
+            </button>
+            <button
+              id="refreshBtn"
+              type="button"
+              class="h-12 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 active:scale-[0.98]"
+            >
+              Refresh Pipeline
+            </button>
+          </div>
+
+          <div class="mt-5">
+            <div class="mb-2 flex items-center justify-between">
+              <h3 class="text-base font-extrabold text-slate-900">Pipeline Board</h3>
+              <p class="text-xs text-slate-500">Swipe horizontally</p>
+            </div>
+
+            <div id="pipelineBoard" class="scroll-slim flex gap-3 overflow-x-auto pb-3"></div>
+          </div>
+        </div>
+
+        <button
+          id="voiceFab"
+          type="button"
+          class="fab-pulse fixed bottom-6 right-5 z-40 flex h-20 w-20 flex-col items-center justify-center rounded-full bg-brandBlue text-white shadow-2xl active:scale-95"
+          aria-label="Voice Add Lead"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 1v11m0 0a3 3 0 003-3V6a3 3 0 10-6 0v3a3 3 0 003 3zm0 0v4m-4 0h8" />
+          </svg>
+          <span class="mt-0.5 text-[10px] font-semibold">Voice</span>
+        </button>
+      </section>
+    </main>
+
+    <div id="leadModal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-slate-950/50" data-close="leadModal"></div>
+      <div class="absolute inset-x-0 bottom-0 max-h-[94vh] overflow-y-auto rounded-t-3xl bg-white px-4 pb-8 pt-4">
+        <div class="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-300"></div>
+
+        <div class="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 id="leadName" class="text-xl font-extrabold text-slate-900">Lead Name</h3>
+            <p id="leadMeta" class="mt-1 text-xs text-slate-500">Project and country</p>
+          </div>
+          <button type="button" data-close="leadModal" class="h-10 w-10 rounded-xl border border-slate-300 text-slate-600">X</button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <a id="callBtn" href="#" class="flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700">Call</a>
+          <a id="whatsAppBtn" href="#" target="_blank" class="flex h-11 items-center justify-center rounded-xl bg-brandGreen text-xs font-bold text-white">WhatsApp</a>
+          <a id="viberBtn" href="#" class="flex h-11 items-center justify-center rounded-xl border border-brandBlue bg-white text-xs font-bold text-brandBlue">Viber</a>
+        </div>
+
+        <div class="mt-5 rounded-2xl border border-slate-200 p-3">
+          <label class="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Update Lead Status</label>
+          <div class="grid grid-cols-[1fr_auto] gap-2">
+            <select id="leadStatusSelect" class="h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700 outline-none focus:border-brandBlue"></select>
+            <button id="saveStatusBtn" type="button" class="h-11 rounded-xl bg-brandBlue px-4 text-sm font-bold text-white">Save</button>
+          </div>
+        </div>
+
+        <button id="manageDpBtn" type="button" class="mt-3 hidden h-11 w-full rounded-xl bg-brandGreen text-sm font-bold text-white">Manage DP</button>
+
+        <div class="mt-6">
+          <h4 class="text-sm font-extrabold text-slate-900">Timeline / History</h4>
+          <div id="activityTimeline" class="mt-3 space-y-2"></div>
+
+          <div class="mt-3 grid grid-cols-[1fr_auto] gap-2">
+            <input id="activityInput" type="text" class="h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" placeholder="Add activity note" />
+            <button id="addActivityBtn" type="button" class="h-11 rounded-xl bg-brandBlue px-4 text-sm font-bold text-white">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="voiceModal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-slate-950/50" data-close="voiceModal"></div>
+      <div class="absolute inset-x-0 bottom-0 max-h-[95vh] overflow-y-auto rounded-t-3xl bg-white px-4 pb-8 pt-4">
+        <div class="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-300"></div>
+
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-lg font-extrabold text-slate-900">AI Voice Verification</h3>
+          <button type="button" data-close="voiceModal" class="h-10 w-10 rounded-xl border border-slate-300 text-slate-600">X</button>
+        </div>
+
+        <form id="voiceForm" class="space-y-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Client Name</label>
+              <input id="vfClientName" type="text" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" required />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Phone</label>
+              <input id="vfPhone" type="text" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Country</label>
+              <input id="vfCountry" type="text" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Classification</label>
+              <select id="vfClassification" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue"></select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Source</label>
+              <select id="vfSource" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue"></select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Temperature</label>
+              <select id="vfTemperature" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue"></select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Project</label>
+              <select id="vfProject" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue"></select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Total Selling Price</label>
+              <input id="vfPrice" type="text" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" placeholder="e.g. 2,500,000" />
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Processed Remarks</label>
+            <textarea id="vfRemarks" rows="4" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brandBlue"></textarea>
+          </div>
+
+          <button id="saveLeadBtn" type="submit" class="h-12 w-full rounded-xl bg-brandBlue text-sm font-bold text-white">Verify &amp; Save Lead</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="dpModal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-slate-950/50" data-close="dpModal"></div>
+      <div class="absolute inset-x-0 bottom-0 max-h-[95vh] overflow-y-auto rounded-t-3xl bg-white px-4 pb-8 pt-4">
+        <div class="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-300"></div>
+
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-lg font-extrabold text-slate-900">Manage Down Payment</h3>
+          <button type="button" data-close="dpModal" class="h-10 w-10 rounded-xl border border-slate-300 text-slate-600">X</button>
+        </div>
+
+        <form id="dpForm" class="space-y-3">
+          <div>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Payment Type</label>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 text-sm font-semibold">
+                <input type="radio" name="paymentType" value="Spot" checked /> Spot
+              </label>
+              <label class="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 text-sm font-semibold">
+                <input type="radio" name="paymentType" value="Installment" /> Installment
+              </label>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Number of Months</label>
+              <input id="dpTermMonths" type="number" min="1" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" value="1" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Current Month Paid</label>
+              <input id="dpCurrentMonth" type="number" min="0" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" value="0" />
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Reservation Date</label>
+            <input id="dpReservationDate" type="date" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" />
+          </div>
+
+          <div class="rounded-2xl border border-dashed border-slate-300 p-3">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Receipt Upload</label>
+            <input id="receiptFileInput" type="file" accept="image/*" class="block w-full text-sm text-slate-600" />
+            <div id="uploadSpinner" class="mt-2 hidden items-center gap-2 text-sm font-semibold text-brandBlue">
+              <span class="h-4 w-4 animate-spin rounded-full border-2 border-brandBlue border-t-transparent"></span>
+              Uploading receipt...
+            </div>
+            <p id="receiptLabel" class="mt-1 text-xs text-slate-500">No file selected</p>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 p-3">
+            <div class="mb-2 flex items-center justify-between text-xs font-semibold text-slate-600">
+              <span>Payment Progress</span>
+              <span id="dpProgressText">0%</span>
+            </div>
+            <div class="h-3 w-full rounded-full bg-slate-200">
+              <div id="dpProgressBar" class="h-3 w-0 rounded-full bg-brandGreen transition-all"></div>
+            </div>
+          </div>
+
+          <button type="submit" class="h-12 w-full rounded-xl bg-brandGreen text-sm font-bold text-white">Save DP Details</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="menuPanel" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-slate-950/40" data-close="menuPanel"></div>
+      <aside class="absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto bg-white px-4 pb-8 pt-4">
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-lg font-extrabold text-slate-900">Profile &amp; Support</h3>
+          <button type="button" data-close="menuPanel" class="h-10 w-10 rounded-xl border border-slate-300 text-slate-600">X</button>
+        </div>
+
+        <section class="mb-5 rounded-2xl border border-slate-200 p-4">
+          <h4 class="mb-2 text-sm font-extrabold text-slate-900">My Profile</h4>
+          <p id="profileName" class="text-sm font-semibold text-slate-700"></p>
+          <p id="profileUser" class="text-xs text-slate-500"></p>
+          <p id="profileTeamRole" class="text-xs text-slate-500"></p>
+        </section>
+
+        <section class="mb-5 rounded-2xl border border-slate-200 p-4">
+          <h4 class="mb-3 text-sm font-extrabold text-slate-900">Change Password</h4>
+          <form id="changePasswordForm" class="space-y-2">
+            <input id="cpCurrent" type="password" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" placeholder="Current password" required />
+            <input id="cpNew" type="password" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" placeholder="New password" required />
+            <button type="submit" class="h-11 w-full rounded-xl bg-brandBlue text-sm font-bold text-white">Update Password</button>
+          </form>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 p-4">
+          <h4 class="mb-3 text-sm font-extrabold text-slate-900">Report a Problem</h4>
+          <form id="ticketForm" class="space-y-2">
+            <select id="ticketIssueType" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" required>
+              <option value="">Issue Type</option>
+              <option value="Bug">Bug</option>
+              <option value="Feature Request">Feature Request</option>
+              <option value="Data Issue">Data Issue</option>
+              <option value="Access Issue">Access Issue</option>
+            </select>
+            <select id="ticketPriority" class="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-brandBlue" required>
+              <option value="">Priority</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
+            </select>
+            <textarea id="ticketDescription" rows="4" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brandBlue" placeholder="Describe the issue" required></textarea>
+            <button type="submit" class="h-11 w-full rounded-xl bg-brandGreen text-sm font-bold text-white">Submit Ticket</button>
+          </form>
+        </section>
+
+        <button id="logoutBtn" type="button" class="mt-5 h-11 w-full rounded-xl border border-red-300 bg-red-50 text-sm font-bold text-red-600">Sign Out</button>
+      </aside>
+    </div>
+
+    <script src="App.js"></script>
+  </body>
+</html>
