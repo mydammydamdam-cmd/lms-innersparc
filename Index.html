@@ -405,38 +405,6 @@
       </aside>
     </div>
 
-    <script>
-      (function() {
-        fetch('./App.html')
-          .then(function(response) {
-            if (!response.ok) {
-              throw new Error('Failed to load App.html script block.');
-            }
-            return response.text();
-          })
-          .then(function(html) {
-            var openTag = '<script>';
-            var closeTag = '<\\/script>';
-            var start = html.indexOf(openTag);
-            var end = html.lastIndexOf(closeTag);
-
-            if (start < 0 || end < 0 || end <= start) {
-              throw new Error('App.html does not contain a valid script block.');
-            }
-
-            var code = html.substring(start + openTag.length, end);
-            var scriptTag = document.createElement('script');
-            scriptTag.text = code;
-            document.body.appendChild(scriptTag);
-          })
-          .catch(function(err) {
-            console.error(err);
-            var banner = document.createElement('div');
-            banner.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:9999;background:#dc2626;color:#fff;padding:10px;border-radius:8px;font:600 12px Montserrat,sans-serif;';
-            banner.textContent = 'App script failed to load. Check App.html path and browser console.';
-            document.body.appendChild(banner);
-          });
-      })();
-    </script>
+    <script src="./App.js"></script>
   </body>
 </html>

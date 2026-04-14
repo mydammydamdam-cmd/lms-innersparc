@@ -1,5 +1,3 @@
-
-<script>
 (() => {
   'use strict';
 
@@ -1100,4 +1098,3 @@
     return escapeHtml(input).replace(/`/g, '&#96;');
   }
 })();
-</script>
