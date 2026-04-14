@@ -1,1 +1,4 @@
 Code.gs
+note.txt
+# Frontend API URL/key obfuscation in App.html is only a deterrent, not real security.
+# Keep authoritative secrets in Apps Script Script Properties and avoid committing backend-sensitive files.
