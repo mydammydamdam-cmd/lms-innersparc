@@ -25,6 +25,8 @@
     activeTransaction: null,
     voiceMode: 'manual',
     transcript: '',
+    voiceDraftFinal: '',
+    voiceDraftInterim: '',
     recognition: null,
     isRecording: false
   };
@@ -96,6 +98,12 @@
     els.activityInput = byId('activityInput');
     els.addActivityBtn = byId('addActivityBtn');
 
+    els.voiceCaptureModal = byId('voiceCaptureModal');
+    els.voiceDraftInput = byId('voiceDraftInput');
+    els.voiceCaptureStatus = byId('voiceCaptureStatus');
+    els.voiceStartStopBtn = byId('voiceStartStopBtn');
+    els.voiceDoneBtn = byId('voiceDoneBtn');
+
     els.voiceModal = byId('voiceModal');
     els.voiceForm = byId('voiceForm');
     els.vfClientName = byId('vfClientName');
@@ -142,6 +150,8 @@
     els.refreshBtn.addEventListener('click', refreshWorkspace);
     els.manualAddBtn.addEventListener('click', onManualAddLead);
     els.voiceFab.addEventListener('click', onVoiceCapture);
+    els.voiceStartStopBtn.addEventListener('click', onToggleVoiceRecording);
+    els.voiceDoneBtn.addEventListener('click', onVoiceDraftDone);
 
     els.openMenuBtn.addEventListener('click', () => showModal('menuPanel'));
     els.logoutBtn.addEventListener('click', onLogout);
@@ -450,27 +460,23 @@
   async function onVoiceCapture() {
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+    state.voiceMode = 'voice';
+    state.transcript = '';
+    state.voiceDraftFinal = '';
+    state.voiceDraftInterim = '';
+    els.voiceDraftInput.value = '';
+    showModal('voiceCaptureModal');
+    updateVoiceCaptureUI();
+
     if (!SpeechRecognitionCtor) {
-      toast('Voice recognition is not supported on this browser.', 'error');
+      toast('Voice recognition is unavailable. You can type your note manually and tap Done.', 'error');
       return;
     }
 
     if (!window.isSecureContext) {
-      toast('Microphone needs a secure (HTTPS) context. Please open the deployed web app URL.', 'error');
+      toast('Microphone needs HTTPS secure context. You can still type your note manually.', 'error');
       return;
     }
-
-    if (state.isRecording) {
-      try {
-        state.recognition.stop();
-      } catch (err) {
-        console.warn(err);
-      }
-      return;
-    }
-
-    state.voiceMode = 'voice';
-    state.transcript = '';
 
     try {
       await ensureMicrophonePermission();
@@ -479,51 +485,85 @@
       return;
     }
 
+    await startVoiceRecognition(SpeechRecognitionCtor);
+  }
+
+  async function onToggleVoiceRecording() {
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (state.isRecording) {
+      stopVoiceRecognition();
+      return;
+    }
+
+    if (!SpeechRecognitionCtor) {
+      toast('Speech recognition not supported. Type notes manually.', 'error');
+      return;
+    }
+
+    if (!window.isSecureContext) {
+      toast('Microphone needs HTTPS secure context. Type notes manually.', 'error');
+      return;
+    }
+
+    try {
+      await ensureMicrophonePermission();
+      await startVoiceRecognition(SpeechRecognitionCtor);
+    } catch (err) {
+      toast(getMicPermissionErrorMessage(err), 'error');
+    }
+  }
+
+  async function startVoiceRecognition(SpeechRecognitionCtor) {
+    if (state.isRecording) {
+      return;
+    }
+
     const recognition = new SpeechRecognitionCtor();
     recognition.lang = 'en-PH';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     state.recognition = recognition;
     state.isRecording = true;
     els.voiceFab.classList.add('bg-red-500');
+    updateVoiceCaptureUI();
 
-    toast('Listening... speak now.', 'info');
+    toast('Listening... talk, then tap Pause when done.', 'info');
 
-    recognition.onresult = async (event) => {
-      const transcript =
-        event && event.results && event.results[0] && event.results[0][0]
-          ? String(event.results[0][0].transcript || '').trim()
-          : '';
-
-      if (!transcript) {
-        toast('No transcript captured. Please try again.', 'error');
+    recognition.onresult = (event) => {
+      if (!event || !event.results) {
         return;
       }
 
-      state.transcript = transcript;
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const part = event.results[i] && event.results[i][0] ? String(event.results[i][0].transcript || '').trim() : '';
+        if (!part) {
+          continue;
+        }
 
-      try {
-        setLoader(true, 'Analyzing voice note...');
-        const aiData = await gas('processVoiceTranscript', state.token, transcript);
-        fillVoiceForm(aiData);
-        showModal('voiceModal');
-        toast('Voice note parsed. Verify details before saving.', 'success');
-      } catch (err) {
-        toast(getErrorMessage(err), 'error');
-      } finally {
-        setLoader(false);
+        if (event.results[i].isFinal) {
+          state.voiceDraftFinal = (state.voiceDraftFinal ? state.voiceDraftFinal + ' ' : '') + part;
+        } else {
+          interim = (interim ? interim + ' ' : '') + part;
+        }
       }
+
+      state.voiceDraftInterim = interim;
+      els.voiceDraftInput.value = getCombinedVoiceDraftText();
     };
 
     recognition.onerror = (event) => {
+      stopVoiceRecognition();
       toast(getSpeechErrorMessage(event), 'error');
     };
 
     recognition.onend = () => {
       state.isRecording = false;
       els.voiceFab.classList.remove('bg-red-500');
+      updateVoiceCaptureUI();
     };
 
     try {
@@ -531,7 +571,74 @@
     } catch (err) {
       state.isRecording = false;
       els.voiceFab.classList.remove('bg-red-500');
+      updateVoiceCaptureUI();
       toast(getSpeechStartErrorMessage(err), 'error');
+    }
+  }
+
+  function stopVoiceRecognition() {
+    if (!state.recognition) {
+      state.isRecording = false;
+      updateVoiceCaptureUI();
+      return;
+    }
+
+    try {
+      state.recognition.stop();
+    } catch (err) {
+      console.warn(err);
+    }
+  }
+
+  function getCombinedVoiceDraftText() {
+    return [state.voiceDraftFinal, state.voiceDraftInterim].filter(Boolean).join(' ').trim();
+  }
+
+  function updateVoiceCaptureUI() {
+    if (!els.voiceStartStopBtn || !els.voiceCaptureStatus || !els.voiceDraftInput) {
+      return;
+    }
+
+    if (state.isRecording) {
+      els.voiceStartStopBtn.textContent = 'Pause Mic';
+      els.voiceStartStopBtn.classList.remove('text-brandBlue', 'border-brandBlue', 'bg-white');
+      els.voiceStartStopBtn.classList.add('text-white', 'bg-brandBlue', 'border-brandBlue');
+      els.voiceCaptureStatus.textContent = 'Listening... speak clearly. Tap Pause when done.';
+      els.voiceDraftInput.readOnly = true;
+      return;
+    }
+
+    els.voiceStartStopBtn.textContent = 'Start Mic';
+    els.voiceStartStopBtn.classList.remove('text-white', 'bg-brandBlue');
+    els.voiceStartStopBtn.classList.add('text-brandBlue', 'border-brandBlue', 'bg-white');
+    els.voiceCaptureStatus.textContent = 'Mic paused. Review or edit your transcript, then tap Done.';
+    els.voiceDraftInput.readOnly = false;
+  }
+
+  async function onVoiceDraftDone() {
+    if (state.isRecording) {
+      stopVoiceRecognition();
+    }
+
+    const transcript = (els.voiceDraftInput.value || '').trim();
+    if (!transcript) {
+      toast('No transcript yet. Speak first or type your note, then tap Done.', 'error');
+      return;
+    }
+
+    state.transcript = transcript;
+
+    try {
+      setLoader(true, 'Analyzing voice note...');
+      const aiData = await gas('processVoiceTranscript', state.token, transcript);
+      fillVoiceForm(aiData);
+      hideModal('voiceCaptureModal');
+      showModal('voiceModal');
+      toast('Voice note parsed. Verify details before saving.', 'success');
+    } catch (err) {
+      toast(getErrorMessage(err), 'error');
+    } finally {
+      setLoader(false);
     }
   }
 
@@ -577,7 +684,7 @@
       return 'No speech detected. Please speak clearly and try again.';
     }
     if (code === 'network') {
-      return 'Network issue while processing voice. Please check your connection.';
+      return 'Speech service is unreachable right now. You can still review/type text in the box and tap Done.';
     }
     if (code === 'aborted') {
       return 'Voice capture stopped.';
@@ -827,6 +934,7 @@
 
     hideModal('menuPanel');
     hideModal('leadModal');
+    hideModal('voiceCaptureModal');
     hideModal('voiceModal');
     hideModal('dpModal');
 
@@ -860,9 +968,14 @@
     if (!node) {
       return;
     }
+
+    if (id === 'voiceCaptureModal' && state.isRecording) {
+      stopVoiceRecognition();
+    }
+
     node.classList.add('hidden');
 
-    const open = ['leadModal', 'voiceModal', 'dpModal', 'menuPanel'].some((modalId) => {
+    const open = ['leadModal', 'voiceCaptureModal', 'voiceModal', 'dpModal', 'menuPanel'].some((modalId) => {
       const modal = byId(modalId);
       return modal && !modal.classList.contains('hidden');
     });
