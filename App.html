@@ -450,8 +450,15 @@
   }
 
   async function onVoiceCapture() {
-    if (!window.webkitSpeechRecognition) {
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognitionCtor) {
       toast('Voice recognition is not supported on this browser.', 'error');
+      return;
+    }
+
+    if (!window.isSecureContext) {
+      toast('Microphone needs a secure (HTTPS) context. Please open the deployed web app URL.', 'error');
       return;
     }
 
@@ -467,8 +474,16 @@
     state.voiceMode = 'voice';
     state.transcript = '';
 
-    const recognition = new window.webkitSpeechRecognition();
+    try {
+      await ensureMicrophonePermission();
+    } catch (err) {
+      toast(getMicPermissionErrorMessage(err), 'error');
+      return;
+    }
+
+    const recognition = new SpeechRecognitionCtor();
     recognition.lang = 'en-PH';
+    recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
@@ -504,8 +519,8 @@
       }
     };
 
-    recognition.onerror = () => {
-      toast('Voice recognition failed. Please try again.', 'error');
+    recognition.onerror = (event) => {
+      toast(getSpeechErrorMessage(event), 'error');
     };
 
     recognition.onend = () => {
@@ -513,7 +528,74 @@
       els.voiceFab.classList.remove('bg-red-500');
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (err) {
+      state.isRecording = false;
+      els.voiceFab.classList.remove('bg-red-500');
+      toast(getSpeechStartErrorMessage(err), 'error');
+    }
+  }
+
+  async function ensureMicrophonePermission() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    try {
+      // We only need permission confirmation; recognition handles capture.
+    } finally {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+  }
+
+  function getMicPermissionErrorMessage(err) {
+    const name = err && err.name ? err.name : '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+      return 'Microphone permission was denied. Please allow mic access in browser settings.';
+    }
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      return 'No microphone was detected on this device.';
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+      return 'Microphone is busy in another app. Close other apps using mic and retry.';
+    }
+    if (name === 'SecurityError') {
+      return 'Microphone requires secure context. Open the HTTPS deployed web app URL directly.';
+    }
+    return 'Unable to access microphone. Check browser permissions and retry.';
+  }
+
+  function getSpeechErrorMessage(event) {
+    const code = event && event.error ? String(event.error) : '';
+    if (code === 'not-allowed' || code === 'service-not-allowed') {
+      return 'Voice recognition was blocked. Allow microphone and speech recognition in browser settings.';
+    }
+    if (code === 'audio-capture') {
+      return 'No microphone input detected. Check your mic and try again.';
+    }
+    if (code === 'no-speech') {
+      return 'No speech detected. Please speak clearly and try again.';
+    }
+    if (code === 'network') {
+      return 'Network issue while processing voice. Please check your connection.';
+    }
+    if (code === 'aborted') {
+      return 'Voice capture stopped.';
+    }
+    return 'Voice recognition failed. Please try again.';
+  }
+
+  function getSpeechStartErrorMessage(err) {
+    const name = err && err.name ? err.name : '';
+    if (name === 'NotAllowedError') {
+      return 'Voice start blocked by browser permissions. Allow microphone then retry.';
+    }
+    if (name === 'InvalidStateError') {
+      return 'Voice recognition is already active. Please wait a moment and retry.';
+    }
+    return 'Unable to start voice recognition. Please try again.';
   }
 
   function fillVoiceForm(data) {
